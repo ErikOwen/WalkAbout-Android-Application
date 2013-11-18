@@ -2,14 +2,15 @@ package edu.calpoly.android.walkabout;
 
 import java.util.ArrayList;
 
-
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.support.v4.app.FragmentManager;
+import android.widget.Toast;
 
 import com.actionbarsherlock.app.SherlockFragmentActivity;
 import com.actionbarsherlock.view.Menu;
 import com.actionbarsherlock.view.MenuInflater;
+import com.actionbarsherlock.view.MenuItem;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.UiSettings;
@@ -75,8 +76,12 @@ public class WalkAbout extends SherlockFragmentActivity {
 		
 		FragmentManager manager = getSupportFragmentManager();
 		this.m_vwMap = ((SupportMapFragment) manager.findFragmentById(R.id.map)).getMap();
-		UiSettings settings = this.m_vwMap.getUiSettings();
-		settings.setZoomControlsEnabled(true);
+		if(this.m_vwMap != null) {
+			UiSettings settings = this.m_vwMap.getUiSettings();
+			settings.setZoomControlsEnabled(true);
+			settings.setCompassEnabled(true);
+			this.m_vwMap.setMyLocationEnabled(true);
+		}
 	}
 	
 	@Override
@@ -84,6 +89,29 @@ public class WalkAbout extends SherlockFragmentActivity {
 	{
 		MenuInflater inflater = this.getSupportMenuInflater();
 		inflater.inflate(R.menu.mainmenu, menu);
+		return true;
+	}
+	
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item){
+		switch (item.getItemId()) {
+		case R.id.menu_recording:
+			Toast.makeText(this, "Record button hit.", Toast.LENGTH_SHORT).show();
+		break;
+		case R.id.menu_save:
+			Toast.makeText(this, "Save button hit.", Toast.LENGTH_SHORT).show();
+		break;
+		case R.id.menu_load:
+			Toast.makeText(this, "Load button hit.", Toast.LENGTH_SHORT).show();
+		break;
+		case R.id.menu_takePicture:
+			Toast.makeText(this, "Take Picture button hit.", Toast.LENGTH_SHORT).show();
+		break;
+		case R.id.menu_enableGPS:
+			Toast.makeText(this, "Enable GPS button hit.", Toast.LENGTH_SHORT).show();
+		break;
+		}
+		
 		return true;
 	}
 	
