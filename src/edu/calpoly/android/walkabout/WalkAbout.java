@@ -5,11 +5,14 @@ import java.util.ArrayList;
 
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.support.v4.app.FragmentManager;
 
 import com.actionbarsherlock.app.SherlockFragmentActivity;
 import com.actionbarsherlock.view.Menu;
 import com.actionbarsherlock.view.MenuInflater;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.Polyline;
@@ -68,7 +71,12 @@ public class WalkAbout extends SherlockFragmentActivity {
      * Initializes all other data for the application.
      */
 	private void initLayout() {
-		// TODO
+		setContentView(R.layout.map_layout);
+		
+		FragmentManager manager = getSupportFragmentManager();
+		this.m_vwMap = ((SupportMapFragment) manager.findFragmentById(R.id.map)).getMap();
+		UiSettings settings = this.m_vwMap.getUiSettings();
+		settings.setZoomControlsEnabled(true);
 	}
 	
 	@Override
