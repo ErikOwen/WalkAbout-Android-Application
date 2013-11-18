@@ -2,8 +2,11 @@ package edu.calpoly.android.walkabout;
 
 import java.util.ArrayList;
 
+import android.content.Context;
+import android.content.Intent;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.support.v4.app.FragmentManager;
 import android.widget.Toast;
 
@@ -65,7 +68,7 @@ public class WalkAbout extends SherlockFragmentActivity {
      * Initializes all Location-related data.
      */
     private void initLocationData() {
-    	// TODO
+    	this.m_locManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
     }
     
     /**
@@ -93,6 +96,21 @@ public class WalkAbout extends SherlockFragmentActivity {
 	}
 	
 	@Override
+	public boolean onPrepareOptionsMenu(Menu menu) {
+		if (this.m_locManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+			MenuItem gpsEnabledItem = menu.findItem(R.id.menu_enableGPS);
+			gpsEnabledItem.setVisible(false);
+		}
+		else {
+			MenuItem startStopItem = menu.findItem(R.id.menu_recording);
+			startStopItem.setVisible(false);
+			Toast.makeText(this, "Thinks the location provider is not enabled", Toast.LENGTH_LONG).show();
+		}
+		
+		return true;
+	}
+	
+	@Override
 	public boolean onOptionsItemSelected(MenuItem item){
 		switch (item.getItemId()) {
 		case R.id.menu_recording:
@@ -108,11 +126,21 @@ public class WalkAbout extends SherlockFragmentActivity {
 			Toast.makeText(this, "Take Picture button hit.", Toast.LENGTH_SHORT).show();
 		break;
 		case R.id.menu_enableGPS:
+			Intent settingsIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+			startActivityForResult(settingsIntent, WalkAbout.ENABLE_GPS_REQUEST_CODE);
 			Toast.makeText(this, "Enable GPS button hit.", Toast.LENGTH_SHORT).show();
 		break;
 		}
 		
 		return true;
+	}
+	
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+	    super.onActivityResult(requestCode, resultCode, data);
+		if (requestCode == WalkAbout.ENABLE_GPS_REQUEST_CODE) {
+	        supportInvalidateOptionsMenu();
+	    }
 	}
 	
 	/**

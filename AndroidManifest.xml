@@ -34,7 +34,7 @@
     		android:value="@integer/google_play_services_version" />
         <meta-data
     		android:name="com.google.android.maps.v2.API_KEY"
-    		android:value="AIzaSyCvhVJRD6mCc08wVTY4Q3-nWgrLjQYEFrU"/>
+    		android:value="AIzaSyDT8O2nqDlrSqoTVB3WSG8xFDuih2eWFt0"/>
         <uses-library android:required="true" android:name="com.google.android.maps" />
         
     </application>
