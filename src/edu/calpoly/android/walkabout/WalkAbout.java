@@ -4,6 +4,8 @@ import java.util.ArrayList;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
+import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -14,19 +16,22 @@ import com.actionbarsherlock.app.SherlockFragmentActivity;
 import com.actionbarsherlock.view.Menu;
 import com.actionbarsherlock.view.MenuInflater;
 import com.actionbarsherlock.view.MenuItem;
+import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.UiSettings;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 /**
  * Activity that contains an interactive Google Map fragment. Users can record
  * a traveled path, mark the map with information and take pictures that become
  * associated with the map.
  */
-public class WalkAbout extends SherlockFragmentActivity {
+public class WalkAbout extends SherlockFragmentActivity implements android.location.LocationListener {
 
 	/** The interactive Google Map fragment. */
 	private GoogleMap m_vwMap;
@@ -69,6 +74,10 @@ public class WalkAbout extends SherlockFragmentActivity {
      */
     private void initLocationData() {
     	this.m_locManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+    	
+    	this.m_arrPathPoints = new ArrayList<LatLng>();
+    	
+    	this.m_bRecording = false;
     }
     
     /**
@@ -79,6 +88,7 @@ public class WalkAbout extends SherlockFragmentActivity {
 		
 		FragmentManager manager = getSupportFragmentManager();
 		this.m_vwMap = ((SupportMapFragment) manager.findFragmentById(R.id.map)).getMap();
+		
 		if(this.m_vwMap != null) {
 			UiSettings settings = this.m_vwMap.getUiSettings();
 			settings.setZoomControlsEnabled(true);
@@ -114,6 +124,13 @@ public class WalkAbout extends SherlockFragmentActivity {
 	public boolean onOptionsItemSelected(MenuItem item){
 		switch (item.getItemId()) {
 		case R.id.menu_recording:
+			if (this.m_bRecording) {
+				setRecordingState(!this.m_bRecording);
+			}
+			else {
+				setRecordingState(!this.m_bRecording);
+			}
+			supportInvalidateOptionsMenu();
 			Toast.makeText(this, "Record button hit.", Toast.LENGTH_SHORT).show();
 		break;
 		case R.id.menu_save:
@@ -150,7 +167,21 @@ public class WalkAbout extends SherlockFragmentActivity {
 	 * 						Whether or not to start recording.
 	 */
 	private void setRecordingState(boolean bRecording) {
-		// TODO
+		this.m_bRecording = bRecording;
+		
+		if (bRecording) {
+			this.m_arrPathPoints.clear();
+			this.m_vwMap.clear();
+			
+			this.m_pathLine = this.m_vwMap.addPolyline(new PolylineOptions());
+			this.m_pathLine.setColor(Color.GREEN);
+			
+			this.onLocationChanged(this.m_locManager.getLastKnownLocation(LocationManager.GPS_PROVIDER));
+			this.m_locManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, WalkAbout.MIN_TIME_CHANGE, WalkAbout.MIN_DISTANCE_CHANGE, this);
+		}
+		else {
+			this.m_locManager.removeUpdates(this);
+		}
 	}
 	
 	/**
@@ -167,4 +198,38 @@ public class WalkAbout extends SherlockFragmentActivity {
 	private void loadRecording() {
 		// TODO
 	}
+
+	@Override
+	public void onLocationChanged(Location location) {
+		LatLng coordinates = new LatLng(location.getLatitude(), location.getLongitude());
+		this.m_arrPathPoints.add(coordinates);
+		this.m_pathLine.setPoints(this.m_arrPathPoints);
+		CircleOptions circOpts = new CircleOptions();
+		circOpts.center(coordinates);
+		circOpts.radius(WalkAbout.CIRCLE_RADIUS);
+		circOpts.fillColor(Color.CYAN);
+		circOpts.strokeColor(Color.BLUE);
+		this.m_vwMap.addCircle(circOpts);
+		
+		this.m_vwMap.animateCamera(CameraUpdateFactory.newLatLng(coordinates));
+	}
+
+	@Override
+	public void onProviderDisabled(String provider) {
+		setRecordingState(false);
+		
+	}
+
+	@Override
+	public void onProviderEnabled(String provider) {
+		//Functionality not needed for this project
+		
+	}
+
+	@Override
+	public void onStatusChanged(String provider, int status, Bundle extras) {
+		//Functionality not needed for this project
+		
+	}
+	
 }
