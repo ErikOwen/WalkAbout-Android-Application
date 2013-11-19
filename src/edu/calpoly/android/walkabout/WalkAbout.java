@@ -1,6 +1,7 @@
 package edu.calpoly.android.walkabout;
 
 import java.io.File;
+import java.text.DateFormat;
 import java.util.ArrayList;
 
 import android.content.Context;
@@ -8,8 +9,10 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.support.v4.app.FragmentManager;
 import android.util.Log;
@@ -154,7 +157,10 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 			Toast.makeText(this, "Load button hit.", Toast.LENGTH_SHORT).show();
 		break;
 		case R.id.menu_takePicture:
-			Toast.makeText(this, "Take Picture button hit.", Toast.LENGTH_SHORT).show();
+			Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+			Uri cameraUri = getOutputMediaFileUri(PICTURE_REQUEST_CODE);
+			cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, cameraUri);
+			startActivityForResult(cameraIntent, WalkAbout.PICTURE_REQUEST_CODE);
 		break;
 		case R.id.menu_enableGPS:
 			Intent settingsIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
@@ -169,9 +175,18 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 	    super.onActivityResult(requestCode, resultCode, data);
+	    
 		if (requestCode == WalkAbout.ENABLE_GPS_REQUEST_CODE) {
 	        supportInvalidateOptionsMenu();
 	    }
+		if (requestCode == WalkAbout.PICTURE_REQUEST_CODE) {
+			if (resultCode == RESULT_OK) {
+				Toast.makeText(this, getResources().getString(R.string.pictureSuccess), Toast.LENGTH_SHORT).show();
+			}
+			if (resultCode == RESULT_CANCELED) {
+				Toast.makeText(this, getResources().getString(R.string.pictureFail), Toast.LENGTH_SHORT).show();
+			}
+		}
 	}
 	
 	/**
@@ -246,7 +261,7 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 		
 	}
 	
-	protected static File getOutputMediaFile(int fileType) {
+	private static File getOutputMediaFile(int fileType) {
 		File mediaFile = null;
 		File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WalkAbout");
 		
@@ -258,7 +273,23 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 			}
 		}
 		
+		String dateString = DateFormat.getDateTimeInstance().format(System.currentTimeMillis());
+		
+		if (fileType == PICTURE_REQUEST_CODE) {
+			String pathString = mediaStorageDir.getPath() + File.separator + "IMG_" + dateString + ".jpg";
+			pathString = pathString.replace(",", "");
+			pathString = pathString.replace(" ", "");
+			pathString = pathString.replace(":", "");
+			Log.w("WalkAbout", "File path to image is: " + pathString);
+			mediaFile = new File(pathString);
+		}
+		
 		return mediaFile;
 	}
 	
+	private static Uri getOutputMediaFileUri(int fileType) {
+		File tempFile = getOutputMediaFile(fileType);
+		
+		return Uri.fromFile(tempFile);
+	}
 }
