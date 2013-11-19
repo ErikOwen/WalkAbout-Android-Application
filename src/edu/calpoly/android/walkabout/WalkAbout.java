@@ -29,6 +29,7 @@ import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 
@@ -68,6 +69,8 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 	private static final int ENABLE_GPS_REQUEST_CODE = 1;
 	private static final int PICTURE_REQUEST_CODE = 2;
 	
+	private static String timestamp;
+	
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,6 +87,8 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
     	this.m_arrPathPoints = new ArrayList<LatLng>();
     	
     	this.m_bRecording = false;
+    	
+    	this.m_arrPicturePoints = new ArrayList<Marker>();
     }
     
     /**
@@ -182,6 +187,12 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 		if (requestCode == WalkAbout.PICTURE_REQUEST_CODE) {
 			if (resultCode == RESULT_OK) {
 				Toast.makeText(this, getResources().getString(R.string.pictureSuccess), Toast.LENGTH_SHORT).show();
+				Location markerLocation = this.m_locManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+				LatLng markerCoordinates = new LatLng(markerLocation.getLatitude(), markerLocation.getLongitude());
+				Marker picMarker = this.m_vwMap.addMarker(new MarkerOptions()
+					.position(markerCoordinates)
+					.title(this.timestamp));
+				this.m_arrPicturePoints.add(picMarker);
 			}
 			if (resultCode == RESULT_CANCELED) {
 				Toast.makeText(this, getResources().getString(R.string.pictureFail), Toast.LENGTH_SHORT).show();
@@ -200,6 +211,7 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 		
 		if (bRecording) {
 			this.m_arrPathPoints.clear();
+			this.m_arrPicturePoints.clear();
 			this.m_vwMap.clear();
 			
 			this.m_pathLine = this.m_vwMap.addPolyline(new PolylineOptions());
@@ -274,6 +286,7 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 		}
 		
 		String dateString = DateFormat.getDateTimeInstance().format(System.currentTimeMillis());
+		timestamp = dateString;
 		
 		if (fileType == PICTURE_REQUEST_CODE) {
 			String pathString = mediaStorageDir.getPath() + File.separator + "IMG_" + dateString + ".jpg";
