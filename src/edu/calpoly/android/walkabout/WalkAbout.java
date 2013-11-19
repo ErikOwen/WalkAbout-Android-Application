@@ -1,11 +1,18 @@
 package edu.calpoly.android.walkabout;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
 import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.NoSuchElementException;
+import java.util.Scanner;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationManager;
@@ -153,13 +160,13 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 				setRecordingState(!this.m_bRecording);
 			}
 			supportInvalidateOptionsMenu();
-			Toast.makeText(this, "Record button hit.", Toast.LENGTH_SHORT).show();
 		break;
 		case R.id.menu_save:
-			Toast.makeText(this, "Save button hit.", Toast.LENGTH_SHORT).show();
+			saveRecording();
 		break;
 		case R.id.menu_load:
-			Toast.makeText(this, "Load button hit.", Toast.LENGTH_SHORT).show();
+			this.m_bRecording = false;
+			loadRecording();
 		break;
 		case R.id.menu_takePicture:
 			Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
@@ -170,7 +177,6 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 		case R.id.menu_enableGPS:
 			Intent settingsIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
 			startActivityForResult(settingsIntent, WalkAbout.ENABLE_GPS_REQUEST_CODE);
-			Toast.makeText(this, "Enable GPS button hit.", Toast.LENGTH_SHORT).show();
 		break;
 		}
 		
@@ -229,7 +235,36 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 	 * Writes important map data to a private application file.
 	 */
 	private void saveRecording() {
-		// TODO
+		if (this.m_arrPathPoints.size() < 1) {
+			Toast.makeText(this, getResources().getString(R.string.saveNoData), Toast.LENGTH_SHORT).show();
+			return;
+		}
+		String fileName = getResources().getString(R.string.latLngPathFileName);
+		this.deleteFile(fileName);
+		File outputFile = new File(fileName);
+		
+		try {
+			FileOutputStream stream = this.openFileOutput(fileName, Context.MODE_PRIVATE);
+			PrintWriter writer = new PrintWriter(stream);
+			
+			for(LatLng curCoordinate : this.m_arrPathPoints) {
+				writer.write(curCoordinate.latitude + "," + curCoordinate.longitude + ";");
+			}
+			
+			writer.write("\n");
+			
+			for(Marker marker : this.m_arrPicturePoints) {
+				LatLng tempCoords = marker.getPosition();
+				writer.write(tempCoords.latitude + "," + tempCoords.longitude + "," + marker.getTitle() + ";");
+			}
+			
+			writer.write("\n");
+			writer.close();
+			Toast.makeText(this, getResources().getString(R.string.saveSuccess), Toast.LENGTH_SHORT).show();
+		}
+		catch (FileNotFoundException e) {
+			Toast.makeText(this, getResources().getString(R.string.saveFailed), Toast.LENGTH_SHORT).show();
+		}
 	}
 	
 	/**
@@ -237,7 +272,55 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 	 * and initializes both the lists and the map with the new data.
 	 */
 	private void loadRecording() {
-		// TODO
+		String fileName = getResources().getString(R.string.latLngPathFileName);
+		try {
+			FileInputStream stream = this.openFileInput(fileName);
+			Scanner scan = new Scanner(stream);
+			
+			String [] pathPoints = (scan.nextLine()).split("[,;]");
+			this.m_arrPathPoints.clear();
+			
+			this.m_vwMap.clear();
+			this.m_pathLine = this.m_vwMap.addPolyline(new PolylineOptions());
+			this.m_pathLine.setColor(Color.GREEN);
+			LatLng coordinates = null;
+			
+			for (int iter = 0; iter < pathPoints.length; iter += 2) {
+				coordinates = new LatLng(Double.valueOf(iter), Double.valueOf(iter + 1));
+				this.m_arrPathPoints.add(coordinates);
+				
+				CircleOptions circOpts = new CircleOptions();
+					circOpts.center(coordinates);
+					circOpts.radius(WalkAbout.CIRCLE_RADIUS);
+					circOpts.fillColor(Color.CYAN);
+					circOpts.strokeColor(Color.BLUE);
+				this.m_vwMap.addCircle(circOpts);
+			}
+			
+			this.m_pathLine.setPoints(this.m_arrPathPoints);
+			
+			if (coordinates != null) {
+				this.m_vwMap.animateCamera(CameraUpdateFactory.newLatLng(coordinates));
+			}
+			
+			String [] picturePoints = (scan.nextLine()).split("[,;]");
+			scan.close();
+			
+			this.m_arrPicturePoints.clear();
+			
+			for (int iter2 = 0; iter2 < picturePoints.length; iter2 += 4) {
+				Marker picMarker = this.m_vwMap.addMarker(new MarkerOptions()
+					.position(new LatLng(Double.valueOf(picturePoints[iter2]), Double.valueOf(picturePoints[iter2 + 1])))
+					.title(picturePoints[iter2 + 2] + "," + picturePoints[iter2 + 3]));
+				this.m_arrPicturePoints.add(picMarker);
+			}
+		}
+		catch (FileNotFoundException e) {
+			Toast.makeText(this, getResources().getString(R.string.loadNoFile), Toast.LENGTH_SHORT).show();
+		}
+		catch (NoSuchElementException noSuchElement) {
+			Toast.makeText(this, getResources().getString(R.string.loadFailed), Toast.LENGTH_SHORT).show();
+		}
 	}
 
 	@Override
@@ -305,4 +388,5 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 		
 		return Uri.fromFile(tempFile);
 	}
+
 }
