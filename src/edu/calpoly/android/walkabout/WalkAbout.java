@@ -277,7 +277,9 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 			FileInputStream stream = this.openFileInput(fileName);
 			Scanner scan = new Scanner(stream);
 			
-			String [] pathPoints = (scan.nextLine()).split("[,;]");
+			String pathString = scan.nextLine();
+			String [] pathPoints = pathString.split("[,;]");
+			Log.w("WalkAbout", ("First line of file is in array format: " + pathString));
 			this.m_arrPathPoints.clear();
 			
 			this.m_vwMap.clear();
@@ -286,7 +288,7 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 			LatLng coordinates = null;
 			
 			for (int iter = 0; iter < pathPoints.length; iter += 2) {
-				coordinates = new LatLng(Double.valueOf(iter), Double.valueOf(iter + 1));
+				coordinates = new LatLng(Double.valueOf(pathPoints[iter]), Double.valueOf(pathPoints[iter + 1]));
 				this.m_arrPathPoints.add(coordinates);
 				
 				CircleOptions circOpts = new CircleOptions();
@@ -303,7 +305,9 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 				this.m_vwMap.animateCamera(CameraUpdateFactory.newLatLng(coordinates));
 			}
 			
-			String [] picturePoints = (scan.nextLine()).split("[,;]");
+			String picString = scan.nextLine();
+			String [] picturePoints = picString.split("[,;]");
+			Log.w("WalkAbout", ("Second line of file is in array format: " + picString));
 			scan.close();
 			
 			this.m_arrPicturePoints.clear();
