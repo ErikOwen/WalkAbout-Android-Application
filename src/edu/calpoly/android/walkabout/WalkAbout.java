@@ -1,25 +1,51 @@
 package edu.calpoly.android.walkabout;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
+import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.NoSuchElementException;
+import java.util.Scanner;
 
-
+import android.content.Context;
+import android.content.Intent;
+import android.content.res.Resources;
+import android.graphics.Color;
+import android.location.Location;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.provider.Settings;
+import android.support.v4.app.FragmentManager;
+import android.util.Log;
+import android.widget.Toast;
 
 import com.actionbarsherlock.app.SherlockFragmentActivity;
 import com.actionbarsherlock.view.Menu;
 import com.actionbarsherlock.view.MenuInflater;
+import com.actionbarsherlock.view.MenuItem;
+import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.UiSettings;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 /**
  * Activity that contains an interactive Google Map fragment. Users can record
  * a traveled path, mark the map with information and take pictures that become
  * associated with the map.
  */
-public class WalkAbout extends SherlockFragmentActivity {
+public class WalkAbout extends SherlockFragmentActivity implements android.location.LocationListener {
 
 	/** The interactive Google Map fragment. */
 	private GoogleMap m_vwMap;
@@ -50,6 +76,8 @@ public class WalkAbout extends SherlockFragmentActivity {
 	private static final int ENABLE_GPS_REQUEST_CODE = 1;
 	private static final int PICTURE_REQUEST_CODE = 2;
 	
+	private static String timestamp;
+	
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -61,14 +89,30 @@ public class WalkAbout extends SherlockFragmentActivity {
      * Initializes all Location-related data.
      */
     private void initLocationData() {
-    	// TODO
+    	this.m_locManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+    	
+    	this.m_arrPathPoints = new ArrayList<LatLng>();
+    	
+    	this.m_bRecording = false;
+    	
+    	this.m_arrPicturePoints = new ArrayList<Marker>();
     }
     
     /**
      * Initializes all other data for the application.
      */
 	private void initLayout() {
-		// TODO
+		setContentView(R.layout.map_layout);
+		
+		FragmentManager manager = getSupportFragmentManager();
+		this.m_vwMap = ((SupportMapFragment) manager.findFragmentById(R.id.map)).getMap();
+		
+		if(this.m_vwMap != null) {
+			UiSettings settings = this.m_vwMap.getUiSettings();
+			settings.setZoomControlsEnabled(true);
+			settings.setCompassEnabled(true);
+			this.m_vwMap.setMyLocationEnabled(true);
+		}
 	}
 	
 	@Override
@@ -79,6 +123,89 @@ public class WalkAbout extends SherlockFragmentActivity {
 		return true;
 	}
 	
+	@Override
+	public boolean onPrepareOptionsMenu(Menu menu) {
+		MenuItem pictureOption = menu.findItem(R.id.menu_takePicture);
+		MenuItem gpsEnabledItem = menu.findItem(R.id.menu_enableGPS);
+		MenuItem startStopItem = menu.findItem(R.id.menu_recording);
+		
+		if (this.m_locManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+			gpsEnabledItem.setVisible(false);
+		}
+		else {
+			startStopItem.setVisible(false);
+			Toast.makeText(this, "Thinks the location provider is not enabled", Toast.LENGTH_LONG).show();
+		}
+		
+		if (!this.m_bRecording) {
+			pictureOption.setVisible(false);
+			startStopItem.setTitle(R.string.menuTitle_startRecording);
+		}
+		else {
+			pictureOption.setVisible(true);
+			startStopItem.setTitle(R.string.menuTitle_stopRecording);
+		}
+		
+		return true;
+	}
+	
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item){
+		switch (item.getItemId()) {
+		case R.id.menu_recording:
+			if (this.m_bRecording) {
+				setRecordingState(!this.m_bRecording);
+			}
+			else {
+				setRecordingState(!this.m_bRecording);
+			}
+			supportInvalidateOptionsMenu();
+		break;
+		case R.id.menu_save:
+			saveRecording();
+		break;
+		case R.id.menu_load:
+			this.m_bRecording = false;
+			loadRecording();
+		break;
+		case R.id.menu_takePicture:
+			Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+			Uri cameraUri = getOutputMediaFileUri(PICTURE_REQUEST_CODE);
+			cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, cameraUri);
+			startActivityForResult(cameraIntent, WalkAbout.PICTURE_REQUEST_CODE);
+		break;
+		case R.id.menu_enableGPS:
+			Intent settingsIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+			startActivityForResult(settingsIntent, WalkAbout.ENABLE_GPS_REQUEST_CODE);
+		break;
+		}
+		
+		return true;
+	}
+	
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+	    super.onActivityResult(requestCode, resultCode, data);
+	    
+		if (requestCode == WalkAbout.ENABLE_GPS_REQUEST_CODE) {
+	        supportInvalidateOptionsMenu();
+	    }
+		if (requestCode == WalkAbout.PICTURE_REQUEST_CODE) {
+			if (resultCode == RESULT_OK) {
+				Toast.makeText(this, getResources().getString(R.string.pictureSuccess), Toast.LENGTH_SHORT).show();
+				Location markerLocation = this.m_locManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+				LatLng markerCoordinates = new LatLng(markerLocation.getLatitude(), markerLocation.getLongitude());
+				Marker picMarker = this.m_vwMap.addMarker(new MarkerOptions()
+					.position(markerCoordinates)
+					.title(this.timestamp));
+				this.m_arrPicturePoints.add(picMarker);
+			}
+			if (resultCode == RESULT_CANCELED) {
+				Toast.makeText(this, getResources().getString(R.string.pictureFail), Toast.LENGTH_SHORT).show();
+			}
+		}
+	}
+	
 	/**
 	 * Switch the application so it is or isn't recording the user's path on the map.
 	 *  
@@ -86,14 +213,58 @@ public class WalkAbout extends SherlockFragmentActivity {
 	 * 						Whether or not to start recording.
 	 */
 	private void setRecordingState(boolean bRecording) {
-		// TODO
+		this.m_bRecording = bRecording;
+		
+		if (bRecording) {
+			this.m_arrPathPoints.clear();
+			this.m_arrPicturePoints.clear();
+			this.m_vwMap.clear();
+			
+			this.m_pathLine = this.m_vwMap.addPolyline(new PolylineOptions());
+			this.m_pathLine.setColor(Color.GREEN);
+			
+			this.onLocationChanged(this.m_locManager.getLastKnownLocation(LocationManager.GPS_PROVIDER));
+			this.m_locManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, WalkAbout.MIN_TIME_CHANGE, WalkAbout.MIN_DISTANCE_CHANGE, this);
+		}
+		else {
+			this.m_locManager.removeUpdates(this);
+		}
 	}
 	
 	/**
 	 * Writes important map data to a private application file.
 	 */
 	private void saveRecording() {
-		// TODO
+		if (this.m_arrPathPoints.size() < 1) {
+			Toast.makeText(this, getResources().getString(R.string.saveNoData), Toast.LENGTH_SHORT).show();
+			return;
+		}
+		String fileName = getResources().getString(R.string.latLngPathFileName);
+		this.deleteFile(fileName);
+		File outputFile = new File(fileName);
+		
+		try {
+			FileOutputStream stream = this.openFileOutput(fileName, Context.MODE_PRIVATE);
+			PrintWriter writer = new PrintWriter(stream);
+			
+			for(LatLng curCoordinate : this.m_arrPathPoints) {
+				writer.write(curCoordinate.latitude + "," + curCoordinate.longitude + ";");
+			}
+			
+			writer.write("\n");
+			
+			for(Marker marker : this.m_arrPicturePoints) {
+				LatLng tempCoords = marker.getPosition();
+				writer.write(tempCoords.latitude + "," + tempCoords.longitude + "," + marker.getTitle() + ";");
+			}
+			
+			writer.write("\n");
+			writer.close();
+			Toast.makeText(this, getResources().getString(R.string.saveSuccess), Toast.LENGTH_SHORT).show();
+		}
+		catch (FileNotFoundException e) {
+			Toast.makeText(this, getResources().getString(R.string.saveFailed), Toast.LENGTH_SHORT).show();
+		}
 	}
 	
 	/**
@@ -101,6 +272,125 @@ public class WalkAbout extends SherlockFragmentActivity {
 	 * and initializes both the lists and the map with the new data.
 	 */
 	private void loadRecording() {
-		// TODO
+		String fileName = getResources().getString(R.string.latLngPathFileName);
+		try {
+			FileInputStream stream = this.openFileInput(fileName);
+			Scanner scan = new Scanner(stream);
+			
+			String pathString = scan.nextLine();
+			String [] pathPoints = pathString.split("[,;]");
+			Log.w("WalkAbout", ("First line of file is in array format: " + pathString));
+			this.m_arrPathPoints.clear();
+			
+			this.m_vwMap.clear();
+			this.m_pathLine = this.m_vwMap.addPolyline(new PolylineOptions());
+			this.m_pathLine.setColor(Color.GREEN);
+			LatLng coordinates = null;
+			
+			for (int iter = 0; iter < pathPoints.length; iter += 2) {
+				coordinates = new LatLng(Double.valueOf(pathPoints[iter]), Double.valueOf(pathPoints[iter + 1]));
+				this.m_arrPathPoints.add(coordinates);
+				
+				CircleOptions circOpts = new CircleOptions();
+					circOpts.center(coordinates);
+					circOpts.radius(WalkAbout.CIRCLE_RADIUS);
+					circOpts.fillColor(Color.CYAN);
+					circOpts.strokeColor(Color.BLUE);
+				this.m_vwMap.addCircle(circOpts);
+			}
+			
+			this.m_pathLine.setPoints(this.m_arrPathPoints);
+			
+			if (coordinates != null) {
+				this.m_vwMap.animateCamera(CameraUpdateFactory.newLatLng(coordinates));
+			}
+			
+			String picString = scan.nextLine();
+			String [] picturePoints = picString.split("[,;]");
+			Log.w("WalkAbout", ("Second line of file is in array format: " + picString));
+			scan.close();
+			
+			this.m_arrPicturePoints.clear();
+			
+			for (int iter2 = 0; iter2 < picturePoints.length; iter2 += 4) {
+				Marker picMarker = this.m_vwMap.addMarker(new MarkerOptions()
+					.position(new LatLng(Double.valueOf(picturePoints[iter2]), Double.valueOf(picturePoints[iter2 + 1])))
+					.title(picturePoints[iter2 + 2] + "," + picturePoints[iter2 + 3]));
+				this.m_arrPicturePoints.add(picMarker);
+			}
+		}
+		catch (FileNotFoundException e) {
+			Toast.makeText(this, getResources().getString(R.string.loadNoFile), Toast.LENGTH_SHORT).show();
+		}
+		catch (NoSuchElementException noSuchElement) {
+			Toast.makeText(this, getResources().getString(R.string.loadFailed), Toast.LENGTH_SHORT).show();
+		}
 	}
+
+	@Override
+	public void onLocationChanged(Location location) {
+		LatLng coordinates = new LatLng(location.getLatitude(), location.getLongitude());
+		this.m_arrPathPoints.add(coordinates);
+		this.m_pathLine.setPoints(this.m_arrPathPoints);
+		CircleOptions circOpts = new CircleOptions();
+		circOpts.center(coordinates);
+		circOpts.radius(WalkAbout.CIRCLE_RADIUS);
+		circOpts.fillColor(Color.CYAN);
+		circOpts.strokeColor(Color.BLUE);
+		this.m_vwMap.addCircle(circOpts);
+		
+		this.m_vwMap.animateCamera(CameraUpdateFactory.newLatLng(coordinates));
+	}
+
+	@Override
+	public void onProviderDisabled(String provider) {
+		setRecordingState(false);
+		
+	}
+
+	@Override
+	public void onProviderEnabled(String provider) {
+		//Functionality not needed for this project
+		
+	}
+
+	@Override
+	public void onStatusChanged(String provider, int status, Bundle extras) {
+		//Functionality not needed for this project
+		
+	}
+	
+	private static File getOutputMediaFile(int fileType) {
+		File mediaFile = null;
+		File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WalkAbout");
+		
+		if (!mediaStorageDir.exists()) {
+			mediaStorageDir.mkdirs();
+			if (!mediaStorageDir.exists()) {
+				Log.w("edu.calpoly.android.walkabout", "Directory creation process failed.");
+				return null;
+			}
+		}
+		
+		String dateString = DateFormat.getDateTimeInstance().format(System.currentTimeMillis());
+		timestamp = dateString;
+		
+		if (fileType == PICTURE_REQUEST_CODE) {
+			String pathString = mediaStorageDir.getPath() + File.separator + "IMG_" + dateString + ".jpg";
+			pathString = pathString.replace(",", "");
+			pathString = pathString.replace(" ", "");
+			pathString = pathString.replace(":", "");
+			Log.w("WalkAbout", "File path to image is: " + pathString);
+			mediaFile = new File(pathString);
+		}
+		
+		return mediaFile;
+	}
+	
+	private static Uri getOutputMediaFileUri(int fileType) {
+		File tempFile = getOutputMediaFile(fileType);
+		
+		return Uri.fromFile(tempFile);
+	}
+
 }
