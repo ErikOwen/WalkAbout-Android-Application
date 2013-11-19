@@ -1,5 +1,6 @@
 package edu.calpoly.android.walkabout;
 
+import java.io.File;
 import java.util.ArrayList;
 
 import android.content.Context;
@@ -8,8 +9,10 @@ import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.Settings;
 import android.support.v4.app.FragmentManager;
+import android.util.Log;
 import android.widget.Toast;
 
 import com.actionbarsherlock.app.SherlockFragmentActivity;
@@ -107,14 +110,25 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 	
 	@Override
 	public boolean onPrepareOptionsMenu(Menu menu) {
+		MenuItem pictureOption = menu.findItem(R.id.menu_takePicture);
+		MenuItem gpsEnabledItem = menu.findItem(R.id.menu_enableGPS);
+		MenuItem startStopItem = menu.findItem(R.id.menu_recording);
+		
 		if (this.m_locManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-			MenuItem gpsEnabledItem = menu.findItem(R.id.menu_enableGPS);
 			gpsEnabledItem.setVisible(false);
 		}
 		else {
-			MenuItem startStopItem = menu.findItem(R.id.menu_recording);
 			startStopItem.setVisible(false);
 			Toast.makeText(this, "Thinks the location provider is not enabled", Toast.LENGTH_LONG).show();
+		}
+		
+		if (!this.m_bRecording) {
+			pictureOption.setVisible(false);
+			startStopItem.setTitle(R.string.menuTitle_startRecording);
+		}
+		else {
+			pictureOption.setVisible(true);
+			startStopItem.setTitle(R.string.menuTitle_stopRecording);
 		}
 		
 		return true;
@@ -230,6 +244,21 @@ public class WalkAbout extends SherlockFragmentActivity implements android.locat
 	public void onStatusChanged(String provider, int status, Bundle extras) {
 		//Functionality not needed for this project
 		
+	}
+	
+	protected static File getOutputMediaFile(int fileType) {
+		File mediaFile = null;
+		File mediaStorageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WalkAbout");
+		
+		if (!mediaStorageDir.exists()) {
+			mediaStorageDir.mkdirs();
+			if (!mediaStorageDir.exists()) {
+				Log.w("edu.calpoly.android.walkabout", "Directory creation process failed.");
+				return null;
+			}
+		}
+		
+		return mediaFile;
 	}
 	
 }
